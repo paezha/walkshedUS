@@ -1,0 +1,10 @@
+Walksheds and associated socio-economic and demographic information for
+Census Tracts in 50 major US metro areas.
+
+# Package index
+
+## All functions
+
+- [`mock_data`](https://paezha.github.io/walkshedUS/reference/mock_data.md)
+  : Prices of over 50,000 round cut diamonds
+
