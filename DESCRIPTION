@@ -1,0 +1,22 @@
+Package: walkshedUS
+Title: Walksheds by Census Tract in Major US Metro Areas
+Version: 0.0.1
+Authors@R: 
+     c(person("Amanda", "Rorat", , "rorata@mcmaster.ca", role = c("aut"),
+           comment = c(ORCID = "0000-0002-6748-2038")),
+       person("Alexandra", "Chow", , "chowa44@mcmaster.ca", role = c("aut"),
+           comment = c(ORCID = "0000-0003-1009-9369")),
+       person("Antonio", "Paez", , "paezha@mcmaster.ca", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-6912-9919")))
+Description: Walksheds and associated socio-economic and demographic information for Census Tracts in 50 major US metro areas.
+License: CC BY 4.0
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends:
+    R (>= 3.5)
+LazyData: true
+Suggests:
+    sf
+VignetteBuilder: knitr
+URL: https://dias-bruno.github.io/ActiveCA/
+Config/roxygen2/version: 8.1.1
