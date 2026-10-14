@@ -18,5 +18,5 @@ LazyData: true
 Suggests:
     sf
 VignetteBuilder: knitr
-URL: https://dias-bruno.github.io/ActiveCA/
+URL: https://dias-bruno.github.io/ActiveCA/, https://paezha.github.io/walkshedUS/
 Config/roxygen2/version: 8.1.1
