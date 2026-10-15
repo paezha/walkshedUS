@@ -1,0 +1,36 @@
+---
+title: "getting-tarted"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{getting-tarted}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+To install the package:
+```
+pak::pkg_install("paezha/walkshedUS")
+```
+
+Call the package:
+```{r setup}
+library(walkshedUS)
+```
+
+Load the data object:
+```{r}
+data("mock_data")
+```
+
+Check the data object:
+```{r}
+mock_data
+```
+

@@ -12,6 +12,7 @@ Walksheds and associated socio-economic and demographic information for Census T
 Useful links:
 \itemize{
   \item \url{https://dias-bruno.github.io/ActiveCA/}
+  \item \url{https://paezha.github.io/walkshedUS/}
 }
 
 }

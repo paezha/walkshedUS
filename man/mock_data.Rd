@@ -3,7 +3,7 @@
 \docType{data}
 \name{mock_data}
 \alias{mock_data}
-\title{Prices of over 50,000 round cut diamonds}
+\title{A mock dataset}
 \format{
 A data frame 3 rows and 2 variables:
 \describe{
@@ -18,7 +18,6 @@ Made up data
 mock_data
 }
 \description{
-A dataset containing the prices and other attributes of almost 54,000
-diamonds. The variables are as follows:
+A data frame with mock data. The variables are as follows:
 }
 \keyword{datasets}
