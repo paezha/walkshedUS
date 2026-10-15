@@ -6,5 +6,10 @@ Census Tracts in 50 major US metro areas.
 ## All functions
 
 - [`mock_data`](https://paezha.github.io/walkshedUS/reference/mock_data.md)
-  : Prices of over 50,000 round cut diamonds
+  : A mock dataset
 
+# Articles
+
+### All vignettes
+
+- [getting-tarted](https://paezha.github.io/walkshedUS/articles/getting-tarted.md):

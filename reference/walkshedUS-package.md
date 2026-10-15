@@ -9,6 +9,8 @@ Useful links:
 
 - <https://dias-bruno.github.io/ActiveCA/>
 
+- <https://paezha.github.io/walkshedUS/>
+
 ## Author
 
 **Maintainer**: Antonio Paez <paezha@mcmaster.ca>
