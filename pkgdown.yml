@@ -3,7 +3,7 @@ pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
   getting-tarted: getting-tarted.html
-last_built: 2026-10-15T00:12Z
+last_built: 2026-10-15T00:14Z
 urls:
   reference: https://paezha.github.io/walkshedUS/reference
   article: https://paezha.github.io/walkshedUS/articles
