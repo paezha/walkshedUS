@@ -2,4 +2,4 @@
 
 ### All vignettes
 
-- [getting-tarted](https://paezha.github.io/walkshedUS/articles/getting-tarted.md):
+- [getting-tarted](https://paezha.github.io/walkshedUS/articles/getting-started.md):
