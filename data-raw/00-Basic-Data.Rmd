@@ -1,0 +1,433 @@
+---
+title: "Basic Data"
+params:
+  city: "Raleigh"
+  state: "North Carolina"
+  states: "North Carolina"
+---
+
+Estimated time to run: a few minutes
+
+Note 1: the parameters (specifically the `city` parameter) are case-sensitive.
+
+Note 2: In the parameters, for `state` enter the primary state of the city (e.g. "Illinois" for Chicago), and in states, include the same state (e.g. "Illinois for Chicago"), but also any other states the CBSA is a part of, if applicable (e.g. "!r c("Illinois", "Indiana")" for Chicago). Otherwise, just write "state name" in `state` and `states`.
+
+Note 3: Before initially running notebooks, run `renv::restore()` to restore all necessary packages at the same versions as initially used for this project.
+
+Some examples of "states" entries in the params section (more can be found in `/Walkshed_Info_WIP_[date].xlsx`, which should be opened separately in Microsoft Excel):
+
+For Washington, DC (multi-state): `!r c("District of Columbia", "Virginia", "Maryland", "West Virginia")`
+
+For New York (multi-state): `!r c("New York", "New Jersey", "Pennsylvania")`
+
+For Phoenix (single-state): `"Arizona"`
+
+## Load packages:
+
+These are the packages used in this notebook:
+```{r}
+library(ggplot2)
+library(glue) # Interpreted String Literals
+library(here) # A Simpler Way to Find Your Files
+library(osmdata) # package for working with streets
+library(sf) # Simple Features for R
+library(tidycensus) # Load US Census Boundary and Attribute Data as 'tidyverse' and 'sf'-Ready Data Frames
+library(tidyverse) # Easily Install and Load the 'Tidyverse'
+library(tigris) # Load Census TIGER/Line Shapefiles
+library(data.table)
+library(ggspatial)
+```
+
+# Load City Data
+
+## Census tracts
+
+Obtain the census tracts for the given city. Note that [{tidycensus}](https://walker-data.com/tidycensus/) function `get_decenial()` allows the selection of state and county, but not metro area or city. Check the example [here](https://walker-data.com/census-r/spatial-analysis-with-us-census-data.html#identifying-geometries-within-a-metropolitan-area) to see how to select tracts in a city.
+
+```{r}
+# requires an API key from /api.census.gov/data/key_signup.html
+
+options(tigris_use_cache = TRUE)
+
+tracts <- get_decennial(geography = "tract",
+                           variables = "H1_001N",
+                           state = params$states,
+                           year = 2020,
+                           geometry = TRUE
+)
+
+city <- urban_areas(year = 2020) |> 
+  filter(str_detect(NAME10, params$state))
+```
+
+A [core-based statistical area](https://en.wikipedia.org/wiki/Core-based_statistical_area) is a generous definition of the area of interest, since it contains an urban nucleus (say, Phoenix) and also all neighboring communities that are tightly integrated with it. It is important to note that some of the neighboring communities share boundaries with the urban nucleus, but some are disconnected.
+
+```{r}
+cbsa <- core_based_statistical_areas(year = 2020) |>
+  filter(str_detect(NAME, params$city))
+```
+
+A much stricter definition of the area of interest would result from using the city boundaries, which can be obtained using `urban_areas()`:
+
+```{r}
+city <- urban_areas(year = 2020) |> 
+  filter(str_detect(NAME10, params$city))
+```
+
+Plot the location of the CBSA within the state and its tracts:
+```{r}
+ggplot() +
+  geom_sf(data = tracts,
+          fill = "lightgrey") +
+  geom_sf(data = cbsa,
+          color = "red",
+          fill = NA) +
+  geom_sf(data = city,
+          color = "blue",
+          fill = NA) +
+  theme_minimal()
+```
+
+Select all urban areas in the CBSA:
+```{r}
+urban <- st_filter(city, cbsa)
+```
+
+Plot urban boundaries within the the CBSA:
+```{r}
+ggplot() +
+  geom_sf(data = cbsa,
+          fill = "lightgray") +
+  geom_sf(data = urban,
+          color = "blue",
+          fill = NA) +
+  theme_minimal()
+```
+
+How many named areas are there in this map?
+```{r}
+ggplot() +
+  geom_sf(data = cbsa,
+          fill = "lightgray") +
+  geom_sf(data = urban,
+          aes(fill = NAME10)) +
+  theme_minimal()
+```
+
+Filter for the urban areas (filtering out other surrounding/detached municipalities):
+```{r eval=FALSE}
+urban <- urban |>
+  filter(NAME10 == "")
+# Run only if needed (automatically set to eval = FALSE)
+# Paste the name from the urban data table
+```
+
+Plot the urban area:
+```{r}
+ggplot() +
+  geom_sf(data = cbsa,
+          fill = "lightgray") +
+  geom_sf(data = tracts,
+          ) +
+  geom_sf(data = urban,
+          color = "blue",
+          fill = NA) +
+  theme_minimal()
+```
+
+Remove any non-bordering CBSAs (if present):
+```{r}
+cbsa_split <- cbsa |>
+  st_cast("POLYGON")
+
+cbsa <- st_filter(cbsa_split, urban, .predicate = st_intersects)
+```
+
+Merge cbsa and urban zones into one polygon:
+```{r}
+merged_cbsa_urban <- st_union(cbsa, urban)
+
+# getting an error when trying to run it for New York
+```
+
+Plot the merged CBSA:
+```{r}
+ggplot() +
+  geom_sf(data = merged_cbsa_urban,
+          fill = "lightgray") +
+  geom_sf(data = urban,
+          color = "blue",
+          fill = NA) +
+  theme_minimal()
+```
+
+Obtain tract centroids:
+```{r}
+tract_centroids <- st_centroid(tracts)
+```
+
+Filter to keep tract centroids only within the merged CBSA:
+```{r}
+tract_centroids <- tract_centroids |>
+  st_filter(merged_cbsa_urban, 
+            .predicate = st_intersects)
+
+# this step ensures that in the later tract st_filter/st_intersects chunk, none of the tracts are outside/bordering the cbsa but are only within it
+```
+
+Map merged cbsa and tract centroids to ensure they're within its boundaries:
+```{r}
+ggplot() +
+  geom_sf(data =  merged_cbsa_urban,
+          fill = "lightgray") +
+  geom_sf(data = tract_centroids,
+          color = "blue",
+          fill = NA,
+          size = 0.5) +
+  theme_minimal()
+
+# ensure all centroid points are within the cbsa outline
+```
+
+Obtain the tracts:
+```{r}
+tracts <- tracts |>
+  semi_join(st_drop_geometry(tract_centroids), by = "GEOID")
+```
+
+Plot the tracts within the merged CBSA:
+```{r}
+ggplot() +
+  geom_sf(data = merged_cbsa_urban,
+          fill = "black") +
+  geom_sf(data = tracts,
+          color = "blue",
+          fill = "lightgrey") +
+  theme_minimal()
+```
+
+Obtain population for the selected state(s):
+```{r}
+state_populations <- get_decennial(geography = "tract",
+                           variables = "P1_001N",
+                           state = params$states,
+                           year = 2020,
+                           geometry = TRUE
+)
+```
+
+Calculate population for tracts (before RUCA filtering):
+```{r}
+tracts_no_geometry <- st_drop_geometry(tracts)
+
+tract_populations <- left_join(tracts_no_geometry, state_populations, by = "GEOID")
+
+total_pre_ruca_population <- sum(tract_populations$value.y)
+
+total_pre_ruca_population
+
+# note to self: record the value in the .xlsx sheet
+```
+
+# Rurality tests:
+
+Obtain Rural-Urban Commuting Area Codes from 2020 on a census tract level, in a .csv format from this [USDA.gov website](https://www.ers.usda.gov/data-products/rural-urban-commuting-area-codes). These values range from 1-10, with 1 being metropolitan zones (and 2, 3 measuring populations that largely commute to metropolitan zones), 4 being micropolitan zones (total populations from 10,000 to 49,999; and 5, 6 measure populations that largely commute to micropolitan zones), 7 being towns (with populations under 10,000; and 8, 9 measure populations that largely commute to the towns), and 10 being rural zones. Rename the file to RUCAcodes.csv and add to `notebooks` folder (had issues opening outside of this folder).
+
+```{r}
+RUCA_table <- read_csv("RUCAcodes.csv")
+```
+
+```{r}
+RUCA_table <- RUCA_table |>
+  rename(GEOID = TractFIPS23)
+```
+
+```{r}
+RUCA_table <- RUCA_table |>
+  select(GEOID, PrimaryRUCA)
+```
+
+```{r, eval = FALSE}
+# RUCA_tracts <- RUCA_table |>
+#   st_filter(tracts,
+#             .predicate = st_intersects)
+```
+
+```{r}
+RUCA_table <- left_join(tracts, RUCA_table, by = "GEOID")
+
+RUCA_exclude <- 99 
+# 99 is the error code
+
+RUCA_table <- RUCA_table |>
+  filter(!(PrimaryRUCA %in% RUCA_exclude))
+```
+
+Plot tracts and their RUCA values from 1 to 10:
+```{r}
+ggplot(RUCA_table, aes(fill = PrimaryRUCA)) + 
+  geom_sf() + 
+  theme_void() +
+  scale_fill_viridis_c(direction = -1, option = "mako") +
+labs(fill = "RUCA value")
+```
+
+Filter to only include metropolitan (1), metropolitan commuting (2, 3), micropolitan (4), and micropolitan commuting (5, 6) zones (which will now be collectively referred to as urban tracts throughout the remainder of the notebooks):
+```{r}
+RUCA_exclude <- c(7:10)
+
+urban_tracts <- RUCA_table |>
+  filter(!(PrimaryRUCA %in% RUCA_exclude))
+
+# https://stackoverflow.com/questions/25764810/delete-rows-based-on-range-of-values-in-column
+```
+
+Plot tracts and their urban RUCA values from 1 to 6:
+```{r}
+ggplot(urban_tracts, aes(fill = PrimaryRUCA)) + 
+  geom_sf() + 
+  theme_minimal() +
+  scale_fill_viridis_c(direction = -1, option = "mako") +
+labs(fill = "RUCA value") +
+  geom_sf(data = urban,
+          color = "red",
+          fill = NA)
+```
+
+Calculate urban (post-RUCA filtering) tract population:
+```{r}
+urban_tracts_no_geometry <- st_drop_geometry(urban_tracts)
+
+urban_populations <- left_join(urban_tracts_no_geometry, state_populations, by = "GEOID")
+
+total_urban_population <- sum(urban_populations$value.y)
+
+total_urban_population
+
+# note to self: record the value in the .xlsx sheet
+
+# urban in our case just means primary RUCA value 1-6
+```
+
+Data table (for filtered_urban_tracts):
+
+We wish to have all of the following, some of which is added next:
+- GEOID (tract ID)
+- NAME
+- population value
+- geometry
+- H1_001N (housing units)
+
+Create dataframe for the filtered tracts and rename columns:
+```{r}
+urban_tracts_df <- urban_populations |>
+  rename(HousingCount = value.x,
+         PopulationCount = value.y,
+         NAME = NAME.x)
+```
+
+Remove redundant columns:
+```{r}
+urban_tracts_df <- urban_tracts_df |>
+  select(-c(variable.x, NAME.y, variable.y))
+```
+
+Convert to simple features:
+```{r}
+urban_tracts_df <- urban_tracts_df |>
+  st_as_sf()
+```
+
+Plot tracts again using the dataframe to ensure it works:
+```{r}
+ggplot(urban_tracts_df, aes(fill = PrimaryRUCA)) + 
+  geom_sf() + 
+  theme_minimal() +
+  scale_fill_viridis_c(direction = -1, option = "mako") +
+labs(fill = "RUCA value") +
+  geom_sf(data = urban,
+          color = "red",
+          fill = NA)
+```
+
+What to save:
+- the new data table for filtered_urban_tracts
+- merged_cbsa_urban
+
+```{r}
+# Tracts dataframe
+save(urban_tracts_df, 
+     file = glue::glue(here::here(),
+                       "/data-raw/intermediate-data-objects/{params$city}_tracts_df.rda"),
+     compress = "bzip2")
+
+# CBSA boundary
+save(merged_cbsa_urban, 
+     file = glue::glue(here::here(),
+                       "/data-raw/intermediate-data-objects/{params$city}_cbsa.rda"),
+     compress = "bzip2")
+```
+
+# Info for Excel file
+
+This is optional, to track progress when working with multiple metros. Copy manually to Excel file if needed.
+
+Read tract counts and population counts:
+```{r}
+nrow(tracts)
+```
+
+```{r}
+nrow(urban_tracts)
+```
+
+```{r}
+total_pre_ruca_population
+```
+
+```{r}
+total_urban_population
+```
+
+Bbox boundaries:
+```{r}
+tracts_bbox <- st_bbox(urban_tracts) |>
+  st_as_sfc() |>
+  st_buffer(dist = 1000) |> # note that the max walk distance in a straight line within 15 minutes at 3.6kmph is 900m
+  st_bbox()
+
+tracts_bbox
+# xmin = left-lower corner lng
+# xmax = right top corner lng
+# ymin = left lower corner lat
+# ymax = right top corner lat
+```
+
+Map tracts and the buffered bbox boundaries:
+```{r}
+ggplot() +
+  layer_spatial(st_bbox(tracts_bbox),
+          fill = "lightgrey") +
+  geom_sf(data = urban_tracts,
+          color = "black",
+          fill = "white") +
+  theme_minimal()
+
+# ensure that all tracts are well within the bbox
+```
+
+Total population of contiguous USA:
+
+```{r, eval = FALSE}
+USA_population <- get_decennial(geography = "tract",
+                           variables = "P1_001N",
+                           state = c("AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"),
+                           year = 2020,
+                           geometry = FALSE
+)
+
+# list obtained from https://mind.sh/are/list-of-all-us-states-html-comma-separated/
+
+sum(USA_population$value)
+# should equal 324,280,186
+```

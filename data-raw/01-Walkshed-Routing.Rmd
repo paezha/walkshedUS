@@ -1,0 +1,374 @@
+---
+title: "Walkshed Routing"
+params:
+  city: ""
+---
+
+Estimated time to run: Several hours (experimenter's PC took 30 hours to route walksheds for New York, the heaviest (in terms of tracts) city in the experiment, but many other cities take only a few hours).
+
+A [walkshed](https://pedshed.net/?page_id=5), also called a pedestrian shed, is the measure of how far a person can walk starting at a given location within a given time range (in this project, within 15 minutes). This is heavily dependent on street layouts.
+
+Load packages:
+```{r}
+options(java.parameters = "-Xmx20G")
+library(dplyr) # A Grammar of Data Manipulation
+library(ggraph) # An Implementation of Grammar of Graphics for Graphs and Networks
+library(ggplot2) # Create Elegant Data Visualisations Using the Grammar of Graphics
+library(ggspatial)
+library(glue) # Interpreted String Literals
+library(here) # A Simpler Way to Find Your Files
+library(igraph) # Network Analysis and Visualization
+library(sf) # Simple Features for R
+library(sfnetworks) # Tidy Geospatial Networks
+library(tidygraph) # A Tidy API for Graph Manipulation
+library(tidyr) # Tidy Messy Data
+library(r5r) # Rapid Realistic Routing with 'R5'
+library(h3) # R Bindings for H3 # R Bindings for H3
+# 'remotes::install_github("crazycapivara/h3-r")' for the h3 package
+library(purrr) # Functional Programming Tools
+library(units) # Measurement Units for R Vectors
+```
+
+## Setting up the Data:
+
+Load data:
+```{r load files part 1}
+# Tracts
+load(file = glue::glue(here::here(),
+                       "/data-raw/intermediate-data-objects/{params$city}_tracts_df.rda"))
+
+# CBSA boundary
+load(file = glue::glue(here::here(),
+                       "/data-raw/intermediate-data-objects/{params$city}_cbsa.rda"))
+
+# cbsa <- merged_cbsa_urban
+```
+
+## Network data
+
+Retrieve OSM data from [BBBike](https://extract.bbbike.org) using the coordinates of the bounding box found in `/notebooks/00-Basic-Data.Rmd`. It will be a proto-buffer file (pbf). Save under `data-raw/r5_graph/$CITY_NAME$`. This has to be done manually before running the remainder of this notebook.
+
+Then, set up the pathing to the PBF file to use for the {r5r} routing:
+```{r set up r5 path}
+r5_path <- file.path(glue::glue(here::here(), "/data-raw/r5_graph/{params$city}/"))
+# fix pathing when possible
+```
+
+Build the network graph:
+```{r r build-graph}
+r5_cma <- setup_r5(data_path = r5_path, 
+                            verbose = FALSE)
+
+# requires JDK version 21 (exactly version 21) to run
+
+# in newer r5r versions, may not work. In that case, use:
+# r5_cma <- r5r::build_network(data_path = r5_path, 
+#                             verbose = FALSE)
+```
+
+Rename the imported/reopened files:
+```{r}
+tracts <- urban_tracts_df
+
+cbsa <- merged_cbsa_urban
+```
+
+The origins are coordinates of centroids tracts and the destinations the coordinates of the h3 geohashes. 
+
+Obtain the tract centroids (the geometry is degenerate and needs to be fixed):
+```{r prepare-inputs}
+origins_da <- tracts |>
+  st_make_valid() |>
+  st_centroid() |>
+  # Transform to lat-long
+  st_transform(crs = st_crs(4326))
+```
+
+Organize the data for the origins to match the format expected by {r5r} (id, lon, lat):
+```{r}
+origins_i_tract <- data.frame(id = tracts$GEOID,
+                           origins_da |>
+                          st_coordinates()) |>
+  rename(lon = X, lat = Y) |>
+  dplyr::select(id, lon, lat)
+```
+
+This is the maximum area with a walking speed of 5.0 km/h and a time of 15 min:
+```{r}
+pi * (units::set_units(3.6, km/h) |> set_units(m/min) * set_units(15, min))^2
+```
+
+Obtain an h3 that covers a larger area:
+```{r}
+h3_i <- geo_to_h3(c(origins_i_tract$lat[1], origins_i_tract$lon[1]), res = 8) |>
+  k_ring(1) |> h3_set_to_multi_polygon()
+
+h3_i |> st_area()
+```
+
+Obtain the children of the chosen polygon(s):
+```{r}
+i <- 1
+h3_i <- geo_to_h3(c(origins_i_tract$lat[i], origins_i_tract$lon[i]), res = 7) |>
+  k_ring(1)
+
+h3_j <- purrr::map(h3_i,
+                   .f = ~ h3_to_children(.x,
+                                  res = 13)) |>
+  unlist()
+```
+
+Check coverage of the children (make sure that the parents are fully covered):
+```{r}
+ggplot() + geom_sf(data = h3_i |> h3_set_to_multi_polygon()) + 
+  geom_sf(data = h3_to_geo_boundary_sf(h3_j), fill = NA)
+```
+
+Obtain the coordinates of the h3 destinations:
+```{r set destinations}
+destinations_h3 <- h3_to_geo(h3_j)
+```
+
+Likewise, organize the data for the origins to match the format expected by {r5r} (id, lon, lat):
+```{r set destination sites}
+destinations_j_h3 <- data.frame(id = h3_j, 
+                             lat = destinations_h3[,1],
+                             lon = destinations_h3[,2])
+```
+
+Test routing with a single origin:
+```{r routing test}
+ttm_test <- travel_time_matrix(r5_cma,
+                                  origins = origins_i_tract[i,],
+                                  destinations = destinations_j_h3,
+                                  mode = "WALK",
+                                  departure_datetime = as.POSIXct(strptime("2021-04-05 08:00:00", "%Y-%m-%d %H:%M:%S", tz = "EST5EDT")),
+                                  max_walk_time = 15, # minutes
+                                  max_trip_duration = 15)
+
+ttm_test <- ttm_test |>
+  rename(from_id = to_id,
+         to_id = from_id)
+```
+
+Retrieve the walkshed as a multipolygon:
+```{r walkshed multipolygon test}
+walkshed_test <- h3_set_to_multi_polygon(ttm_test$to_id) |> 
+  as_tibble() |> st_as_sf(crs = 4326)
+```
+
+Compare the walkshed to the parent h3s:
+```{r, eval = FALSE}
+# have to fix
+```
+
+Now implement routing for the rest of origins (can take several hours to run):
+```{r}
+n_origins <- nrow(origins_i_tract)
+
+ttm_list <- vector("list", n_origins)
+
+start.time <- Sys.time()
+
+for(i in 1:n_origins){
+  
+  # Obtain the h3 polygons around the centroid of the tract at resolution 7
+  h3_i <- geo_to_h3(c(origins_i_tract$lat[i], origins_i_tract$lon[i]), res = 7) |>
+    k_ring(1)
+  
+  # Obtain the children of the res 7 polygons at resolution 13, whith are about 50 square meters in size
+  h3_j <- purrr::map(h3_i,
+                     .f = ~ h3_to_children(.x,
+                                           res = 13)) |>
+    unlist()
+  
+  # Obtain the coordinates of the res 13 polygons to use as destinations for origin i
+  destinations_h3 <- h3_to_geo(h3_j)
+  
+  # Organize the data for the origins to match the format expected by {r5r} (id, lon, lat)
+  destinations_j_h3 <- data.frame(id = h3_j, 
+                                  lat = destinations_h3[,1],
+                                  lon = destinations_h3[,2])
+  
+  # Routing for origin i
+  ttm_list[[i]] <- travel_time_matrix(r5_cma,
+                                      origins = origins_i_tract[i,],
+                                      destinations = destinations_j_h3,
+                                      mode = "WALK",
+                                      departure_datetime = as.POSIXct(strptime("2021-04-05 08:00:00", "%Y-%m-%d %H:%M:%S", tz = "EST5EDT")),
+                                      max_walk_time = 15, # minutes
+                                      max_trip_duration = 15)
+}
+
+ttm_i <- bind_rows(ttm_list)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+
+Swap the location of the to and from id columns (they're initially in the incorrect spots):
+```{r}
+ttm_i <- ttm_i |>
+  rename(from_id = to_id,
+         to_id = from_id)
+
+# If running into issues with multipolygon generation later, ensure from_id are tract ids (only numbers), and to_id are h3 ids (numbers with a letter at the end)
+```
+
+Save the ttm file:
+```{r}
+# TTM
+save(ttm_i, 
+     file = glue::glue(here::here(),
+                       "/data-raw/{params$city}_ttm_i.rda"),
+     compress = "bzip2")
+
+# save temporarily as the ttm_i files are large, but good to have in case walkshed (later chunks) have to be re-run.
+```
+
+Retrieve the h3 areas as multipolygons (can take several hours to run, but not as long as the initial routing):
+```{r}
+start.time <- Sys.time()
+
+walksheds <- ttm_i |> 
+  group_by(from_id) |>
+  group_map(~ h3_set_to_multi_polygon(.x$to_id),
+            .keep = TRUE)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+
+Obtain the GEOIDs of the walksheds:
+```{r}
+walkshed_IDs <- ttm_i |>
+  group_by(from_id) |>
+  summarize(from_id = first(from_id),
+            .groups = "drop")
+```
+
+Convert to simple features identified by the origin:
+```{r}
+start.time <- Sys.time()
+
+walksheds <- data.frame(GEOID = walkshed_IDs$from_id,
+                         geometry = purrr::map_df(walksheds,
+                            tibble::as_tibble)) |>
+  st_as_sf(crs = 4326)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+# this chunk should take only a few seconds
+```
+
+Verify the catchments:
+```{r, eval = FALSE}
+test_unit = sample.int(nrow(walksheds), 1)
+
+ggplot() +
+  geom_sf(data = tracts |>
+            filter(GEOID == walksheds$GEOID[test_unit]),
+          color = "black",
+          fill= "lightgray") + 
+  geom_sf(data = walksheds[test_unit,],
+          color = "blue",
+          fill = NA,
+          linewidth = 1) #+
+  #geom_sf(data = roads)
+```
+
+Save walksheds:
+```{r save origin and destination files}
+# Walksheds
+save(walksheds, 
+     file = glue::glue(here::here(),
+                       "/data/{params$city}_walksheds.rda"),
+     compress = "bzip2")
+```
+
+Plot a sample tract's walkshed:
+```{r}
+ggplot() +
+  geom_sf(data = walksheds |>
+            slice_sample(n = 1))
+```
+
+Calculate area of tract walksheds:
+```{r}
+walkshed_areas <- walksheds |>
+  mutate(area = as.numeric(st_area(geometry)))
+```
+
+
+Create walksheds df with previous tracts df data and walkshed data:
+```{r}
+urban_tracts_df <- urban_tracts_df |>
+  st_as_sf()
+
+walkshed_areas <- walkshed_areas |>
+  st_drop_geometry()
+
+walksheds_df <- right_join(urban_tracts_df, walkshed_areas, by = "GEOID")
+```
+
+Rename walkshed area column:
+```{r}
+walksheds_df <- walksheds_df |>
+  rename(WalkshedArea = area)
+```
+
+Plot the tracts and the walkshed area values:
+```{r}
+ggplot(walksheds_df, aes(fill = WalkshedArea)) + 
+  geom_sf() + 
+  theme_void() +
+  scale_fill_viridis_c(option = "turbo") +
+labs(fill = "Walkshed Size (m^2)")
+```
+
+Plot the tracts with RUCA value 1 (fully metropolitan/urban/non-commuting tracts) and their walkshed area values:
+```{r}
+RUCA_exclude <- c(2:6)
+
+RUCA_1_tracts <- walksheds_df |>
+  filter(!(PrimaryRUCA %in% RUCA_exclude))
+
+ggplot(RUCA_1_tracts, aes(fill = WalkshedArea)) + 
+  geom_sf() + 
+  theme_void() +
+  scale_fill_viridis_c(option = "turbo") +
+labs(fill = "Walkshed Size (m^2)")
+```
+
+Calculate the new tract populations (based on the ones for which there are walksheds):
+```{r}
+total_walksheds_population <- sum(walksheds_df$PopulationCount)
+
+total_walksheds_population
+
+# note to self: record the value in the .xlsx sheet
+```
+
+Calculate the RUCA value 1 tract populations (based on the ones for which there are walksheds):
+```{r}
+RUCA_1_population <- sum(RUCA_1_tracts$PopulationCount)
+
+RUCA_1_population
+
+# note to self: record the value in the .xlsx sheet
+```
+
+Save the walksheds dataframe:
+```{r}
+# Origins
+save(walksheds_df, 
+     file = glue::glue(here::here(),
+                       "/data-raw/intermediate-data-objects/{params$city}_walksheds_df.rda"),
+     compress = "bzip2")
+```
+
+The chunks aren't all labeled yet! It's a work-in-progress. Everything should run without issues though.

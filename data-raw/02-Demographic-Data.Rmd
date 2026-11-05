@@ -1,0 +1,277 @@
+---
+title: "Demographic Data"
+params:
+  city: "Detroit"
+  states: "Michigan"
+---
+
+!r c("Pennsylvania", "New Jersey", "Delaware", "Maryland")
+
+Steps:
+- Obtain Census demographic info for:
+  - Race
+  1. White
+  2. Black
+  3. Hispanic
+  4. Asian
+  5. Other? 
+  - Average household income by tract
+  1. See if an income by race by tract measure exists (probably not?)
+  
+  
+```{r load packages}
+library(tidycensus)
+library(tigris)
+library(dplyr) # A Grammar of Data Manipulation
+library(ggraph) # An Implementation of Grammar of Graphics for Graphs and Networks
+library(ggplot2) # Create Elegant Data Visualisations Using the Grammar of Graphics
+library(glue) # Interpreted String Literals
+library(here) # A Simpler Way to Find Your Files
+library(igraph) # Network Analysis and Visualization
+library(sf) # Simple Features for R
+library(tidygraph) # A Tidy API for Graph Manipulation
+library(tidyr) # Tidy Messy Data
+library(purrr) # Functional Programming Tools
+library(units) # Measurement Units for R Vectors
+# library(ggpubr)
+library(seg)
+library(spdep)
+library(vegan)
+library(cartogram)
+```
+
+```{r}
+# Walksheds Dataframe
+load(file = glue::glue(here::here(),
+                       "/data/{params$city}_walksheds_df.rda"))
+```
+
+
+  # Downloading Census Data
+
+```{r}
+tracts <- get_decennial(geography = "tract",
+                           variables = "H1_001N",
+                           state = params$states,
+                           year = 2020,
+                           geometry = TRUE)
+```
+
+  
+
+```{r}
+# Median income in past 12 months: B06011_001 (individual income), B19013_001 (household income)
+
+income <- get_acs(
+  state = params$states,
+  geography = "tract",
+  variables = "B19013_001",
+  geometry = TRUE,
+  output = "wide",
+  year = 2020)
+
+income <- st_drop_geometry(income)
+```
+
+https://api.census.gov/data/2020/dec/pl/groups/P2.html
+
+```{r}
+white_p <- get_decennial(
+  state = params$states,
+  geography = "tract",
+  variables = "P2_005N",
+  geometry = TRUE,
+  output = "wide",
+  year = 2020)
+
+# previously used B02001_002 (and was set to get_acs)
+
+white_p <- st_drop_geometry(white_p)
+
+white_population <- sum(white_p$P2_005N)
+
+white_population
+```
+
+```{r}
+black_p <- get_decennial(
+  state = params$states,
+  geography = "tract",
+  variables = "P2_006N",
+  geometry = TRUE,
+  output = "wide",
+  year = 2020)
+
+# B02001_003 via get_acs() previously
+
+black_p <- st_drop_geometry(black_p)
+
+black_population <- sum(black_p$P2_006N)
+
+black_population
+```
+
+```{r}
+hispanic_p <- get_decennial(
+  state = params$states,
+  geography = "tract",
+  variables = "P2_002N",
+  geometry = TRUE,
+  output = "wide",
+  year = 2020)
+
+hispanic_p <- st_drop_geometry(hispanic_p)
+
+hispanic_population <- sum(hispanic_p$P2_002N)
+
+hispanic_population
+```
+
+```{r}
+asian_p <- get_decennial(
+  state = params$states,
+  geography = "tract",
+  variables = "P2_008N",
+  geometry = TRUE,
+  output = "wide",
+  year = 2020)
+
+asian_p <- st_drop_geometry(asian_p)
+
+asian_population <- sum(asian_p$P2_008N)
+
+asian_population
+```
+
+```{r}
+walksheds_demo_df <- walksheds_df |>
+  left_join(income |> select(GEOID, B19013_001E), by = "GEOID") |>
+  left_join(white_p |> select(GEOID, P2_005N), by = "GEOID") |>
+  left_join(black_p |> select(GEOID, P2_006N), by = "GEOID") |>
+  left_join(hispanic_p |> select(GEOID, P2_002N), by = "GEOID") |>
+  left_join(asian_p |> select(GEOID, P2_008N), by = "GEOID")
+```
+
+```{r}
+walksheds_demo_df <- walksheds_demo_df |>
+  rename(household_income = B19013_001E) |>
+  rename(white_p = P2_005N) |>
+  rename(black_p = P2_006N) |>
+  rename(hispanic_p = P2_002N) |>
+  rename(asian_p = P2_008N)
+```
+
+```{r}
+bw_pops <- walksheds_demo_df[, c("white_p", "black_p")]
+
+bw_pops <- st_drop_geometry(bw_pops)
+```
+
+
+Include individual or household level income? (currently including household)
+
+Include other races category? (like in Logan's 2022 paper?, even if it wouldn't necessarily be used?) (total pop minus (sum of other 4))
+
+Do I use the US Census Diversity Index? (or just stick to the 'seg' package?)
+
+# Segregation Data
+
+https://syunhong.github.io/seg/
+tldr: seg and dissim functions should operate the same/similarly; also they do not consider census tracts/spatial arrangements
+
+```{r}
+segregation_index <- dissim(data = bw_pops)
+
+segregation_index
+
+# keep all rows but only use column: [, 1:2]
+```
+
+- Use diversity index for the census tracts themselves? Since the dissimilarity index cannot be applied to each census tract.
+
+```{r}
+diversity_measure <- diversity(bw_pops, index = "shannon", MARGIN = 1, base = exp(1)) |>
+  data.frame()
+
+diversity_measure
+
+# simpson is used for US Census Data Diversity Index
+```
+
+```{r}
+diversity_measure_table <- walksheds_demo_df |>
+  mutate(diversity(bw_pops, index = "shannon", MARGIN = 1, base = exp(1))) |>
+  rename(diversity_value = `diversity(bw_pops, index = "shannon", MARGIN = 1, base = exp(1))`)
+  # 
+  # diversity(walksheds_demo_df, index = "simpson", MARGIN = 1, base = exp(1))
+
+diversity_measure_table
+
+# use shannon or simpson or invsimpson measure
+# for shannon, see how a better version should be used: https://github.com/konopinski/Shannon
+```
+
+```{r}
+ggplot(diversity_measure_table, aes(fill = diversity_value)) + 
+  geom_sf() + 
+  theme_void() +
+  scale_fill_viridis_c(option = "turbo") +
+labs(fill = "Diversity Index Value")
+```
+
+```{r}
+RUCA_exclude <- c(2:6)
+
+RUCA_1_tracts <- diversity_measure_table |>
+  filter(!(PrimaryRUCA %in% RUCA_exclude))
+
+ggplot(RUCA_1_tracts, aes(fill = diversity_value)) + 
+  geom_sf() + 
+  theme_void() +
+  scale_fill_viridis_c(option = "turbo") +
+labs(fill = "Diversity Index Value")
+```
+
+Note: For Detroit, the tracts with a 1.00 diversity index value have a population of 0-4, hence the importance of population weights (and then make a heat map to visualize it more accurately?)
+
+```{r}
+RUCA_1_tracts_transformed <- RUCA_1_tracts |>
+  st_transform(3857)
+
+cartogram_data <- cartogram_cont(RUCA_1_tracts_transformed,
+                 weight = "PopulationCount")
+
+# https://r-charts.com/spatial/cartogram-ggplot2/
+```
+
+
+```{r}
+ggplot(cartogram_data, aes(fill = diversity_value)) +
+  geom_sf() +
+  theme_void() +
+  scale_fill_viridis_c(option = "turbo")
+```
+
+```{r}
+walkshed_data_cartog_dorling <-cartogram_dorling(RUCA_1_tracts_transformed,
+                    weight = "PopulationCount")
+```
+
+```{r}
+ggplot(walkshed_data_cartog_dorling, aes(fill = diversity_value)) +
+  geom_sf() +
+  theme_void() +
+  scale_fill_viridis_c(option = "turbo")
+```
+
+```{r}
+# ggplot(RUCA_1_tracts, aes(x=walkshed_area, y=diversity_value)) + 
+#   geom_point(aes(colour = Y, size = Y)) +
+#   scale_colour_continuous(low = "darkblue", high = "grey", 
+#                       breaks = c(1, 0.15, 0.1, 0.05, 0.01)) +
+#   labs(y = "Y-axis", x = "X-axis", size = "Determined by Y", colour = "Determined by Y")
+
+ggplot(RUCA_1_tracts, aes(x=WalkshedArea, y=diversity_value)) +
+  geom_point(aes(color = diversity_value, size = PopulationCount))
+```
+
