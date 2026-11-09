@@ -1,10 +1,12 @@
 ---
-title: "Demographic Data"
-params:
-  city: ""
-  states:
+title: "Renaming Data Objects"
 ---
-  
+
+In this notebook we collect all previously processed data objects and rename them, before saving to folder data.
+
+# Preliminaries
+
+Load the packages used in this notebook:
 ```{r load packages}
 library(dplyr) # A Grammar of Data Manipulation
 library(glue) # Interpreted String Literals
@@ -12,7 +14,10 @@ library(here) # A Simpler Way to Find Your Files
 library(stringr)
 library(usethis)
 ```
+
 ## Tracts
+
+Load, rename and save tract data frames. These are sf objects with the geometry of the census tracts, plus bonus socio-economic and demographic data.
 
 Read files with the tract data:
 ```{r}
@@ -37,6 +42,8 @@ for(i in 1:nrow(file_names)){
 
 ## Walksheds
 
+Load, rename and save wa;kshed data frames. These are sf objects with the geometry of the walksheds.
+
 Read files with the tract data:
 ```{r}
 file_names <- data.frame(object = list.files(path = "intermediate-data-objects/", pattern = "_walksheds.rda"))
@@ -54,26 +61,6 @@ for(i in 1:nrow(file_names)){
   load(glue::glue("intermediate-data-objects/{file_names$object[i]}"))
   new_name <- glue::glue("{file_names$city[i]}_walksheds")
   assign(new_name, walksheds)
-  do.call("use_data", list(as.name(new_name), overwrite = TRUE))
-}
-```
-Read files with the tract data:
-```{r}
-file_names <- data.frame(object = list.files(path = "intermediate-data-objects/", pattern = "_walksheds_df.rda"))
-```
-
-Mutate to obtain the name of the city:
-```{r}
-file_names <- file_names |>
-  mutate(city = stringr::str_remove(object, pattern = "_walksheds_df.rda"))
-```
-
-Load, rename, and save:
-```{r}
-for(i in 1:nrow(file_names)){
-  load(glue::glue("intermediate-data-objects/{file_names$object[i]}"))
-  new_name <- glue::glue("{file_names$city[i]}_tracts_df")
-  assign(new_name, walksheds_df)
   do.call("use_data", list(as.name(new_name), overwrite = TRUE))
 }
 ```
