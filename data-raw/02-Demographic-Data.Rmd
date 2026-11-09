@@ -1,23 +1,9 @@
 ---
 title: "Demographic Data"
 params:
-  city: "Detroit"
-  states: "Michigan"
+  city: ""
+  states:
 ---
-
-!r c("Pennsylvania", "New Jersey", "Delaware", "Maryland")
-
-Steps:
-- Obtain Census demographic info for:
-  - Race
-  1. White
-  2. Black
-  3. Hispanic
-  4. Asian
-  5. Other? 
-  - Average household income by tract
-  1. See if an income by race by tract measure exists (probably not?)
-  
   
 ```{r load packages}
 library(tidycensus)
@@ -33,19 +19,18 @@ library(tidygraph) # A Tidy API for Graph Manipulation
 library(tidyr) # Tidy Messy Data
 library(purrr) # Functional Programming Tools
 library(units) # Measurement Units for R Vectors
-# library(ggpubr)
-library(seg)
-library(spdep)
-library(vegan)
-library(cartogram)
+library(ggpubr)
+# library(seg)
+# library(spdep)
+# library(vegan)
+# library(cartogram)
 ```
 
 ```{r}
 # Walksheds Dataframe
 load(file = glue::glue(here::here(),
-                       "/data/{params$city}_walksheds_df.rda"))
+                       "/data-raw/intermediate-data-objects/{params$city}_walksheds_df.rda"))
 ```
-
 
   # Downloading Census Data
 
@@ -57,7 +42,7 @@ tracts <- get_decennial(geography = "tract",
                            geometry = TRUE)
 ```
 
-  
+# Obtaining Demographic Data from US Census
 
 ```{r}
 # Median income in past 12 months: B06011_001 (individual income), B19013_001 (household income)
@@ -143,8 +128,12 @@ asian_population <- sum(asian_p$P2_008N)
 asian_population
 ```
 
+# Compiling Walksheds_DF
+
+Note: right now walksheds_df has the same name as the df file from notebook-01 (should I change one?)
+
 ```{r}
-walksheds_demo_df <- walksheds_df |>
+walksheds_df <- walksheds_df |>
   left_join(income |> select(GEOID, B19013_001E), by = "GEOID") |>
   left_join(white_p |> select(GEOID, P2_005N), by = "GEOID") |>
   left_join(black_p |> select(GEOID, P2_006N), by = "GEOID") |>
@@ -153,125 +142,121 @@ walksheds_demo_df <- walksheds_df |>
 ```
 
 ```{r}
-walksheds_demo_df <- walksheds_demo_df |>
+walksheds_df <- walksheds_df |>
   rename(household_income = B19013_001E) |>
-  rename(white_p = P2_005N) |>
-  rename(black_p = P2_006N) |>
-  rename(hispanic_p = P2_002N) |>
-  rename(asian_p = P2_008N)
+  rename(white_pop = P2_005N) |>
+  rename(black_pop = P2_006N) |>
+  rename(hispanic_pop = P2_002N) |>
+  rename(asian_pop = P2_008N) |>
+  mutate() |>
+  rename(tract_name = NAME) |> # should I keep this to change from NAME to tract_name? or remove altogether
+  rename(housing_count = HousingCount) |>
+  rename(primary_ruca = PrimaryRUCA) |>
+  rename(population_count = PopulationCount) |>
+  rename(walkshed_area = WalkshedArea)
+```
+
+How to change order of columns (if necessary)?
+
+```{r}
+# Walksheds Dataframe
+save(walksheds_df, 
+     file = glue::glue(here::here(),
+                       "/data/walkshed_dataframes/{params$city}_walksheds_df.rda"),
+     compress = "bzip2")
 ```
 
 ```{r}
-bw_pops <- walksheds_demo_df[, c("white_p", "black_p")]
-
-bw_pops <- st_drop_geometry(bw_pops)
-```
-
-
-Include individual or household level income? (currently including household)
-
-Include other races category? (like in Logan's 2022 paper?, even if it wouldn't necessarily be used?) (total pop minus (sum of other 4))
-
-Do I use the US Census Diversity Index? (or just stick to the 'seg' package?)
-
-# Segregation Data
-
-https://syunhong.github.io/seg/
-tldr: seg and dissim functions should operate the same/similarly; also they do not consider census tracts/spatial arrangements
-
-```{r}
-segregation_index <- dissim(data = bw_pops)
-
-segregation_index
-
-# keep all rows but only use column: [, 1:2]
-```
-
-- Use diversity index for the census tracts themselves? Since the dissimilarity index cannot be applied to each census tract.
-
-```{r}
-diversity_measure <- diversity(bw_pops, index = "shannon", MARGIN = 1, base = exp(1)) |>
-  data.frame()
-
-diversity_measure
-
-# simpson is used for US Census Data Diversity Index
-```
-
-```{r}
-diversity_measure_table <- walksheds_demo_df |>
-  mutate(diversity(bw_pops, index = "shannon", MARGIN = 1, base = exp(1))) |>
-  rename(diversity_value = `diversity(bw_pops, index = "shannon", MARGIN = 1, base = exp(1))`)
-  # 
-  # diversity(walksheds_demo_df, index = "simpson", MARGIN = 1, base = exp(1))
-
-diversity_measure_table
-
-# use shannon or simpson or invsimpson measure
-# for shannon, see how a better version should be used: https://github.com/konopinski/Shannon
-```
-
-```{r}
-ggplot(diversity_measure_table, aes(fill = diversity_value)) + 
+ggplot(walksheds_df, aes(fill = (white_pop/population_count))) + 
   geom_sf() + 
   theme_void() +
   scale_fill_viridis_c(option = "turbo") +
-labs(fill = "Diversity Index Value")
+labs(fill = "Portion of tract population that
+is non-Hispanic white only")
 ```
 
 ```{r}
 RUCA_exclude <- c(2:6)
 
-RUCA_1_tracts <- diversity_measure_table |>
-  filter(!(PrimaryRUCA %in% RUCA_exclude))
+RUCA_1_tracts <- walksheds_df |>
+  filter(!(primary_ruca %in% RUCA_exclude))
+```
 
-ggplot(RUCA_1_tracts, aes(fill = diversity_value)) + 
+```{r}
+ggplot(RUCA_1_tracts, aes(fill = (white_pop/population_count))) + 
   geom_sf() + 
   theme_void() +
   scale_fill_viridis_c(option = "turbo") +
-labs(fill = "Diversity Index Value")
+labs(fill = "Portion of tract population that
+is non-Hispanic white only")
 ```
 
-Note: For Detroit, the tracts with a 1.00 diversity index value have a population of 0-4, hence the importance of population weights (and then make a heat map to visualize it more accurately?)
-
 ```{r}
-RUCA_1_tracts_transformed <- RUCA_1_tracts |>
-  st_transform(3857)
-
-cartogram_data <- cartogram_cont(RUCA_1_tracts_transformed,
-                 weight = "PopulationCount")
-
-# https://r-charts.com/spatial/cartogram-ggplot2/
-```
-
-
-```{r}
-ggplot(cartogram_data, aes(fill = diversity_value)) +
-  geom_sf() +
+ggplot(walksheds_df, aes(fill = (black_pop/population_count))) + 
+  geom_sf() + 
   theme_void() +
-  scale_fill_viridis_c(option = "turbo")
+  scale_fill_viridis_c(option = "turbo") +
+labs(fill = "Portion of tract population that
+is non-Hispanic black only")
 ```
 
 ```{r}
-walkshed_data_cartog_dorling <-cartogram_dorling(RUCA_1_tracts_transformed,
-                    weight = "PopulationCount")
-```
-
-```{r}
-ggplot(walkshed_data_cartog_dorling, aes(fill = diversity_value)) +
-  geom_sf() +
+ggplot(RUCA_1_tracts, aes(fill = (black_pop/population_count))) + 
+  geom_sf() + 
   theme_void() +
-  scale_fill_viridis_c(option = "turbo")
+  scale_fill_viridis_c(option = "turbo") +
+labs(fill = "Portion of tract population that
+is non-Hispanic black only")
+```
+
+Note that the graphs below are not population-weighted.
+
+```{r}
+walksheds_df <- walksheds_df |>
+  mutate(white_prop = white_pop/population_count)
 ```
 
 ```{r}
-# ggplot(RUCA_1_tracts, aes(x=walkshed_area, y=diversity_value)) + 
-#   geom_point(aes(colour = Y, size = Y)) +
-#   scale_colour_continuous(low = "darkblue", high = "grey", 
-#                       breaks = c(1, 0.15, 0.1, 0.05, 0.01)) +
-#   labs(y = "Y-axis", x = "X-axis", size = "Determined by Y", colour = "Determined by Y")
-
-ggplot(RUCA_1_tracts, aes(x=WalkshedArea, y=diversity_value)) +
-  geom_point(aes(color = diversity_value, size = PopulationCount))
+ggscatter(walksheds_df, x = "white_prop", y = "walkshed_area", add = "reg.line", shape = 19, size = 1, xlab = "Proportion of White Population in Census Tract", ylab = "Area of Walkshed in Square Meters", font.label = c(5, "plain", "black")) +
+  stat_cor(label.x = 0.75, label.y = 2000000) #label placement
 ```
 
+```{r}
+walksheds_df <- walksheds_df |>
+  mutate(black_prop = black_pop/population_count)
+```
+
+```{r}
+ggscatter(walksheds_df, x = "black_prop", y = "walkshed_area", add = "reg.line", shape = 19, size = 1, xlab = "Proportion of Black Population in Census Tract", ylab = "Area of Walkshed in Square Meters", font.label = c(5, "plain", "black")) +
+  stat_cor(label.x = 0.75, label.y = 2000000) #label placement
+```
+
+```{r}
+ggscatter(walksheds_df, x = "household_income", y = "walkshed_area", add = "reg.line", shape = 19, size = 1, xlab = "Average Household Income in Census Tract (Annual, USD)", ylab = "Area of Walkshed in Square Meters", xlim = c(0, 155000)) +
+  stat_cor(label.x = 120000, label.y = 2000000) #label placement
+```
+
+How to include population weighting (especially for the R value)?
+e.g. (black pop / total pop) * black pop ?
+
+```{r}
+walksheds_df <- walksheds_df |>
+  mutate(white_prop_weighted = white_pop/population_count*white_pop)
+```
+
+```{r}
+ggscatter(walksheds_df, x = "white_prop_weighted", y = "walkshed_area", add = "reg.line", shape = 19, size = 1, xlab = "Weighted White Population Proportion in Census Tract", ylab = "Area of Walkshed in Square Meters", font.label = c(5, "plain", "black")) +
+  stat_cor(label.x = 0.75, label.y = 2000000) #label placement
+```
+
+^ But it doesn't put extra emphasis on those tracts with a higher weighted population and it doesn't compare how much of the tract has a black population in comparison.
+
+```{r}
+walksheds_df <- walksheds_df |>
+  mutate(black_prop_weighted = black_pop/population_count*black_pop)
+```
+
+```{r}
+ggscatter(walksheds_df, x = "black_prop_weighted", y = "walkshed_area", add = "reg.line", shape = 19, size = 1, xlab = "Weighted Black Population Proportion in Census Tract", ylab = "Area of Walkshed in Square Meters", font.label = c(5, "plain", "black")) +
+  stat_cor(label.x = 0.75, label.y = 2000000) #label placement
+```
