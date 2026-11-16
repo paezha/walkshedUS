@@ -22,15 +22,16 @@ pak::pkg_install("paezha/walkshedUS")
 Call the package:
 ```{r setup}
 library(walkshedUS)
+library(sf)
 ```
 
 Load the data object:
 ```{r}
-data("mock_data")
+data("Atlanta_walksheds")
 ```
 
 Check the data object:
 ```{r}
-mock_data
+plot(Atlanta_walksheds[1,])
 ```
 

@@ -21,13 +21,13 @@ Load, rename and save tract data frames. These are sf objects with the geometry 
 
 Read files with the tract data:
 ```{r}
-file_names <- data.frame(object = list.files(path = "intermediate-data-objects/", pattern = "_walksheds_df.rda"))
+file_names <- data.frame(object = list.files(path = "intermediate-data-objects/", pattern = "_walksheds_df_final.rda"))
 ```
 
 Mutate to obtain the name of the city:
 ```{r}
 file_names <- file_names |>
-  mutate(city = stringr::str_remove(object, pattern = "_walksheds_df.rda"))
+  mutate(city = stringr::str_remove(object, pattern = "_walksheds_df_final.rda"))
 ```
 
 Load, rename, and save:

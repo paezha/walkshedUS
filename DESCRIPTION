@@ -17,6 +17,7 @@ Depends:
 LazyData: true
 Suggests:
     knitr,
+    osmdata,
     rmarkdown,
     sf
 VignetteBuilder: knitr

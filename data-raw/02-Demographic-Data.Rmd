@@ -1,8 +1,8 @@
 ---
 title: "Demographic Data"
 params:
-  city: ""
-  states:
+  city: "Oklahoma City"
+  states: "Oklahoma"
 ---
   
 ```{r load packages}
@@ -20,10 +20,6 @@ library(tidyr) # Tidy Messy Data
 library(purrr) # Functional Programming Tools
 library(units) # Measurement Units for R Vectors
 library(ggpubr)
-# library(seg)
-# library(spdep)
-# library(vegan)
-# library(cartogram)
 ```
 
 ```{r}
@@ -162,7 +158,7 @@ How to change order of columns (if necessary)?
 # Walksheds Dataframe
 save(walksheds_df, 
      file = glue::glue(here::here(),
-                       "/data/walkshed_dataframes/{params$city}_walksheds_df.rda"),
+                       "/data-raw/intermediate-data-objects/{params$city}_walksheds_df_final.rda"),
      compress = "bzip2")
 ```
 

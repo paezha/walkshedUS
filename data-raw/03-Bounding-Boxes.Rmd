@@ -1,0 +1,69 @@
+---
+title: "03-Bounding-Boxes"
+output: html_document
+---
+
+```{r load packages}
+library(dplyr) # A Grammar of Data Manipulation
+library(glue) # Interpreted String Literals
+library(here) # A Simpler Way to Find Your Files
+library(stringr)
+library(usethis)
+library(sf)
+```
+
+Try and create a loop that:
+- Parameter that changes from name 1-41
+- Loads tracts_df file associated with parameter name
+- Calculates its bbox
+- Adds that value to a dataframe
+- Loop to load new tracts_df file and repeat until all 41 MSA bboxes are in one dataframe object
+
+Read files with the tract data:
+```{r}
+file_names <- data.frame(object = list.files(path = "intermediate-data-objects/", pattern = "_tracts_df.rda"))
+```
+
+Mutate to obtain the name of the city:
+```{r}
+file_names <- file_names |>
+  mutate(city = stringr::str_remove(object, pattern = "_tracts_df.rda"))
+```
+
+```{r}
+msa_bbox_data <- data.frame(city = character(), xmin = numeric(), ymin = numeric(), xmax = numeric(), ymax = numeric())
+
+msa_bboxes <- st_sfc()
+
+for(i in 1:nrow(file_names)){
+  load(glue::glue("intermediate-data-objects/{file_names$object[i]}"))
+  city_name <- {file_names$city[i]}
+  tracts_bbox <- st_bbox(urban_tracts_df) |>
+  st_as_sfc() |>
+  st_buffer(dist = 1000) |> # note that the max walk distance in a straight line within 15 minutes at 3.6kmph is 900m
+  st_bbox()
+  tracts_bbox_df <- as.vector(tracts_bbox)
+  msa_bbox_data[i, 1]  <- city_name
+  msa_bbox_data[i, 2:5] <- tracts_bbox_df
+  msa_bboxes[i] <- st_as_sfc(tracts_bbox)
+}
+
+msa_bboxes <- msa_bboxes |>
+  st_as_sf() |>
+  rename(geometry = x)
+
+msa_bbox_df <- cbind(msa_bboxes, msa_bbox_data)
+```
+
+```{r}
+# Bounding Boxes
+save(msa_bbox_df, 
+     file = glue::glue(here::here(),
+                       "/data/msa_bboxes.rda"),
+     compress = "bzip2")
+```
+
+```{r}
+plot(msa_bboxes)
+```
+
