@@ -52,12 +52,12 @@ msa_bboxes <- msa_bboxes |>
   st_as_sf() |>
   rename(geometry = x)
 
-msa_bbox_df <- cbind(msa_bboxes, msa_bbox_data)
+msa_bboxes <- cbind(msa_bboxes, msa_bbox_data)
 ```
 
 ```{r}
 # Bounding Boxes
-save(msa_bbox_df, 
+save(msa_bboxes, 
      file = glue::glue(here::here(),
                        "/data/msa_bboxes.rda"),
      compress = "bzip2")
