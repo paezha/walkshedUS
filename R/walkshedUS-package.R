@@ -5,9 +5,9 @@
 ## usethis namespace: end
 NULL
 
-#############
+##############
 # MSA BBOXES #
-#############
+##############
 
 #' Bounding box coordinates and polygons for metropolitan statistical areas
 #'
@@ -40,27 +40,55 @@ NULL
 
 #' Fifteen-minute walksheds for census tracts in Atlanta GA
 #'
+#' @description
 #' A simple features dataframe with unique identifiers that link to the census tracts,
 #' and a geometry column with the polygon or multipolygon that defines the 15-minute
 #' walkshed for each census tract. The geometry is in lat-long (crs: 4326).
 #'
-#' @format A simple features dataframe with 1485 rows and 2 variables:
+#' @format An object of class sf (inherits from data.frame) with 1485 rows and 2 columns.
 #' \describe{
 #'   \item{GEOID}{unique identifier for the census tract}
 #'   \item{geometry}{geometry of the walkshed as a multipolygon}
 #' }
 #'
-#' @source Isochrones calculated using package {r5r} using a walk speed of
-#' 3.6 kph for 15 minutes.
+#' @source Isochrones calculated using package \code{r5r} using a walk speed of
+#' 3.6 kph for 15 minutes and OpenStreetMaps street network
 #' @docType data
 #' @keywords datasets
 #' @name Atlanta_walksheds
 #' @usage data(Atlanta_walksheds)
-#' @source Routing on the walksheds used data from OpenStreetMaps
+#' @source Routing to obtain the walksheds was
 #' @examples
 #'  data(Atlanta_walksheds)
 "Atlanta_walksheds"
 
+#' Fifteen-minute walksheds for census tracts in Austin TX
+#'
+#' @inherit Atlanta_walksheds description
+#' @inherit Atlanta_walksheds format
+#' @seealso [Atlanta_walksheds] for variable definitions.
+#' @docType data
+#' @keywords datasets
+#' @name Austin_walksheds
+#' @usage data(Austin_walksheds)
+#' @inherit Atlanta_walksheds source
+#' @examples
+#'  data(Austin_walksheds)
+"Austin_walksheds"
+
+#' Fifteen-minute walksheds for census tracts in Baltimore MD
+#'
+#' @inherit Atlanta_walksheds description
+#' @inherit Atlanta_walksheds format
+#' @inherit Austin_walksheds seealso
+#' @docType data
+#' @keywords datasets
+#' @name Baltimore_walksheds
+#' @usage data(Baltimore_walksheds)
+#' @inherit Atlanta_walksheds source
+#' @examples
+#'  data(Baltimore_walksheds)
+"Baltimore_walksheds"
 
 ##############
 #   TRACTS   #
@@ -73,7 +101,7 @@ NULL
 #' (including housing counts and population counts), and RUCA values for determining tract urbanity/rurality.
 #' The geometry is in lat-long (crs: 4326).
 #'
-#' @format A simple features dataframe with 1485 rows and 12 variables:
+#' @format An object of class sf (inherits from tbl_df, tbl, data.frame) with 1485 rows and 12 columns.
 #' \describe{
 #'   \item{GEOID}{unique identifier for the census tract, obtained from the 2020 US Decennial Census}
 #'   \item{tract_name}{the name, number, and county location of the tract, obtained from the 2020 US Decennial Census}
@@ -89,10 +117,10 @@ NULL
 #'   \item{asian_pop}{the population count of non-hispanic asian residents in the census tract, obtained from the 2020 US Decennial Census}
 #' }
 #'
-#' @source Census tract, population count, housing count data obtained from the 2020 US Decennial Census
-#' @source Annual household income for census tracts data obtained from the 2020 US ACS Census
-#' @source Primary RUCA codes obtained from the USDA Economic Research Service (2020)
-#' @source Walkshed areas in square meters calculated using the walkshed multipolygons (Atlanta_walksheds)
+#' @source Census tract, population count, housing count data obtained from the 2020 US Decennial Census (\url{URL})\cr
+#' Annual household income for census tracts data obtained from the 2020 US ACS Census (\url{URL})\cr
+#' Primary RUCA codes obtained from the USDA Economic Research Service (2020) (\url{URL})\cr
+#' Walkshed areas in square meters calculated using the walkshed multipolygons
 #' @docType data
 #' @keywords datasets
 #' @name Atlanta_tracts
@@ -100,3 +128,32 @@ NULL
 #' @examples
 #'  data(Atlanta_tracts)
 "Atlanta_tracts"
+
+
+#' Census tract information, walkshed size and demographic data for Austin TX
+#'
+#' @inherit Atlanta_tracts description
+#' @inherit Atlanta_tracts format
+#' @seealso [Atlanta_tracts] for variable definitions.
+#' @docType data
+#' @keywords datasets
+#' @name Austin_tracts
+#' @usage data(Austin_tracts)
+#' @inherit Atlanta_tracts source
+#' @examples
+#'  data(Austin_tracts)
+"Austin_tracts"
+
+#' Census tract information, walkshed size and demographic data for Baltimore MD
+#'
+#' @inherit Atlanta_tracts description
+#' @inherit Atlanta_tracts format
+#' @inherit Austin_tracts seealso
+#' @docType data
+#' @keywords datasets
+#' @name Baltimore_tracts
+#' @usage data(Baltimore_tracts)
+#' @inherit Atlanta_tracts source
+#' @examples
+#'  data(Baltimore_tracts)
+"Baltimore_tracts"
