@@ -3,19 +3,19 @@
 \docType{data}
 \name{Atlanta_walksheds}
 \alias{Atlanta_walksheds}
-\title{Fifteen-minute walksheds for census tracts in Atlanta}
+\title{Fifteen-minute walksheds for census tracts in Atlanta GA}
 \format{
-A simple features dataframe with X rows and 2 variables:
+An object of class sf (inherits from data.frame) with 1485 rows and 2 columns.
 \describe{
 \item{GEOID}{unique identifier for the census tract}
-\item{geometry}{geometry of the polygon or multipolygon}
+\item{geometry}{geometry of the walkshed as a multipolygon}
 }
 }
 \source{
-Isochrones calculated using package {r5r} using a walk speed of
-3.6 kph for 15 minutes.
+Isochrones calculated using package \code{r5r} using a walk speed of
+3.6 kph for 15 minutes and OpenStreetMaps street network
 
-Routing on the walksheds used data from OpenStreetMaps
+Routing to obtain the walksheds was
 }
 \usage{
 data(Atlanta_walksheds)
