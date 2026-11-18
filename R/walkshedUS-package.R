@@ -9,7 +9,7 @@ NULL
 # MSA BBOXES #
 #############
 
-#' Bounding box coordinates and polygons for metropolitan statistical areas
+#' Bounding box coordinates and polygons for 41 metropolitan statistical areas
 #'
 #' A simple features dataframe with city names connected to their bounding box coordinate values
 #' and polygons of the bounding boxes. The geometry is in lat-long (crs: 4326).
@@ -78,7 +78,7 @@ NULL
 #'   \item{GEOID}{unique identifier for the census tract, obtained from the 2020 US Decennial Census}
 #'   \item{tract_name}{the name, number, and county location of the tract, obtained from the 2020 US Decennial Census}
 #'   \item{housing_count}{the number of housing units in the census tract, obtained from the 2020 US Decennial Census}
-#'   \item{primary_ruca}{the RUCA value of the census tract, between 1 (most metropolitan) and 6 (micropolitan commuting), obtained from the USDA (2020)}
+#'   \item{primary_ruca}{the primary RUCA value of the census tract, between 1 (most metropolitan) and 6 (micropolitan commuting), obtained from the USDA (2020)}
 #'   \item{population_count}{the total population count of the census tract, obtained from the 2020 US Decennial Census}
 #'   \item{geometry}{geometry of the census tract as a multipolygon, obtained from the 2020 US Decennial Census}
 #'   \item{walkshed_area}{the area of the census tract's generated walkshed in square meters}
@@ -89,9 +89,9 @@ NULL
 #'   \item{asian_pop}{the population count of non-hispanic asian residents in the census tract, obtained from the 2020 US Decennial Census}
 #' }
 #'
-#' @source Census tract, population count, housing count data obtained from the 2020 US Decennial Census
-#' @source Annual household income for census tracts data obtained from the 2020 US ACS Census
-#' @source Primary RUCA codes obtained from the USDA Economic Research Service (2020)
+#' @source Census tract, population count, housing count data obtained from the 2020 US DecennialCensus using package {tidycensus}
+#' @source Annual household income for census tracts data obtained from the 2020 US ACS Census using package {tidycensus}
+#' @source Primary RUCA codes obtained from the USDA Economic Research Service (2020)(\url{https://www.ers.usda.gov/data-products/rural-urban-commuting-area-codes})\cr
 #' @source Walkshed areas in square meters calculated using the walkshed multipolygons (Atlanta_walksheds)
 #' @docType data
 #' @keywords datasets
